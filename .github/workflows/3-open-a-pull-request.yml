@@ -155,7 +155,30 @@ jobs:
 
       - name: Disable current workflow and enable next one
         run: |
-          gh workflow disable "${{github.workflow}}"
-          gh workflow enable "Step 4"
+          workflows=$(gh workflow list --all --json name,state)
+          current_workflow_state=$(jq -r --arg workflow "$GITHUB_WORKFLOW" '.[] | select(.name == $workflow) | .state' <<< "$workflows")
+          next_workflow_state=$(jq -r '.[] | select(.name == "Step 4") | .state' <<< "$workflows")
+          case "$current_workflow_state" in
+            active)
+              gh workflow disable "$GITHUB_WORKFLOW"
+              ;;
+            disabled_*)
+              ;;
+            *)
+              echo "Unable to determine state for workflow: $GITHUB_WORKFLOW" >&2
+              exit 1
+              ;;
+          esac
+          case "$next_workflow_state" in
+            active)
+              ;;
+            disabled_*)
+              gh workflow enable "Step 4"
+              ;;
+            *)
+              echo "Unable to determine state for workflow: Step 4" >&2
+              exit 1
+              ;;
+          esac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
